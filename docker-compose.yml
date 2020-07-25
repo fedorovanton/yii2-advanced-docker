@@ -1,0 +1,68 @@
+# Версия docker-compose
+version: '3.3'
+
+# Создаем общую сеть "default-network" для всех контейнеров
+networks:
+  default-network:
+    driver: bridge
+
+# Создаем отдельные контейнеры
+services:
+
+  # NGINX
+  nginx:
+    image: nginx:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    # Подключаем к общей сети с другими контейнерами
+    networks:
+      - default-network
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./docker/logs/nginx:/var/log/nginx
+      - ./application:/var/www/html
+    # nginx должен общаться с php-fpm контейнером
+    links:
+      - php-fpm
+
+  # Контейнер с веб-приложением (Yii2 + PHP)
+  php-fpm:
+    # у нас свой образ для PHP, указываем путь к нему и говорим что его надо собрать
+    build: ./docker/php-fpm/build-image
+    volumes:
+      - ./application:/var/www/html
+    networks:
+      - default-network
+    links:
+      - mysql
+
+  # MySQL
+  mysql:
+    image: mysql:5.7
+    restart: always
+    # Показываем наружу 3306 порт
+    ports:
+      - "3306:3306"
+    # Подключаем к общей сети с другими контейнерами
+    networks:
+      - default-network
+    volumes:
+      - ./docker/mysql:/var/lib/mysql
+      - ./docker/logs/mysql:/var/log/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456qwerty
+      MYSQL_DATABASE: project_db
+
+  # Adminer для MySQL
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"  # Показываем наружу 8080 порт
+    # Подключаем к общей сети с другими контейнерами
+    networks:
+      - default-network
+    depends_on:
+      - mysql
